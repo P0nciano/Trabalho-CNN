@@ -1,0 +1,17 @@
+# Node
+node_modules/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# MacOS
+.DS_Store
+__MACOSX/
+
+# Runtime
+.runtime/
+
+# Arquivos temporários
+uploads/
