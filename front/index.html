@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Classificador de Pecas</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #0d0d0d; color: #fff; padding: 32px; }
+    h1 { font-size: 2rem; margin-bottom: 24px; }
+    h1 span { color: #b4ff00; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; }
+    .card-header { padding: 14px 18px; border-bottom: 1px solid #2a2a2a; display: flex; justify-content: space-between; align-items: center; font-size: .75rem; color: #666; text-transform: uppercase; letter-spacing: 3px; }
+    #drop-area { height: 380px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    #drop-area img { max-height: 100%; max-width: 100%; border-radius: 8px; display: none; }
+    #drop-area p { color: #555; }
+    .card-footer { padding: 14px 18px; border-top: 1px solid #2a2a2a; display: flex; gap: 10px; }
+    .card-footer button { padding: 12px 0; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: .85rem; letter-spacing: 2px; text-transform: uppercase; }
+    #btn-classify { flex: 1; background: #b4ff00; color: #000; }
+    #btn-reset { flex: 0 0 80px; background: transparent; border: 1px solid #333 !important; color: #666; }
+    .result-body { padding: 24px 18px; }
+    #result-class { font-size: 3rem; color: #b4ff00; font-weight: bold; margin-bottom: 16px; }
+    .bar-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .bar-bg { flex: 1; height: 6px; background: #2a2a2a; border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #b4ff00; width: 0; transition: width .4s; }
+    #result-pct { color: #b4ff00; font-weight: bold; min-width: 40px; text-align: right; }
+    .top-label { font-size: .7rem; color: #555; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 14px; }
+    .pred-item { margin-bottom: 14px; }
+    .pred-item .row { display: flex; justify-content: space-between; font-size: .85rem; margin-bottom: 4px; }
+    .pred-item .pct { color: #555; }
+    #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 10; align-items: center; justify-content: center; }
+    #modal.open { display: flex; }
+    #modal-box { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; width: min(820px, 94vw); max-height: 88vh; display: flex; flex-direction: column; }
+    #modal-head { padding: 14px 18px; border-bottom: 1px solid #2a2a2a; display: flex; justify-content: space-between; align-items: center; }
+    #modal-head span { font-size: .75rem; color: #666; text-transform: uppercase; letter-spacing: 3px; }
+    #modal-head button { background: none; border: none; color: #666; font-size: 1.2rem; cursor: pointer; }
+    #folders { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #2a2a2a; }
+    .folder-btn { padding: 7px 16px; border-radius: 99px; border: 1px solid #333; background: transparent; color: #888; font-size: .75rem; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; }
+    .folder-btn.active { background: #b4ff00; color: #000; border-color: #b4ff00; }
+    #images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; padding: 14px 18px; overflow-y: auto; flex: 1; }
+    #images img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }
+    #images img:hover { border-color: #b4ff00; }
+    #modal-hint { color: #444; font-size: .85rem; padding: 40px; text-align: center; }
+    .gallery-btn { background: transparent; border: 1px solid #b4ff0055; color: #b4ff00; padding: 6px 14px; border-radius: 99px; font-size: .7rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<h1>Classificador de <span>Pecas</span></h1>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-header">
+      Imagem de entrada
+      <button class="gallery-btn" onclick="openModal()">Galeria</button>
+    </div>
+    <div id="drop-area" onclick="document.getElementById('file').click()">
+      <img id="preview">
+      <p id="hint">Clique para selecionar</p>
+    </div>
+    <input type="file" id="file" accept="image/*" style="display:none" onchange="loadFile(this)">
+    <div class="card-footer">
+      <button id="btn-classify" onclick="classify()">Classificar</button>
+      <button id="btn-reset" onclick="reset()">Limpar</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Resultado</div>
+    <div class="result-body">
+      <div id="result-class">-</div>
+      <div class="bar-wrap">
+        <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
+        <span id="result-pct">-</span>
+      </div>
+      <div class="top-label">Top predicoes</div>
+      <div id="preds"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box">
+    <div id="modal-head">
+      <span id="modal-title">Galeria</span>
+      <button onclick="closeModal()">x</button>
+    </div>
+    <div id="folders"></div>
+    <div id="images"><div id="modal-hint">Selecione uma pasta acima.</div></div>
+  </div>
+</div>
+
+<script>
+let currentFile = null;
+
+function loadFile(input) {
+  const f = input.files[0];
+  if (!f) return;
+  currentFile = f;
+  document.getElementById('preview').src = URL.createObjectURL(f);
+  document.getElementById('preview').style.display = 'block';
+  document.getElementById('hint').style.display = 'none';
+}
+
+function reset() {
+  currentFile = null;
+  document.getElementById('preview').src = '';
+  document.getElementById('preview').style.display = 'none';
+  document.getElementById('hint').style.display = '';
+  document.getElementById('result-class').textContent = '-';
+  document.getElementById('result-pct').textContent = '-';
+  document.getElementById('bar').style.width = '0';
+  document.getElementById('preds').innerHTML = '';
+}
+
+async function classify() {
+  if (!currentFile) { alert('Selecione uma imagem.'); return; }
+  const fd = new FormData();
+  fd.append('image', currentFile);
+  const res  = await fetch('/infer', { method: 'POST', body: fd });
+  const data = await res.json();
+  const pct  = Math.round(data.confidence * 100);
+  document.getElementById('result-class').textContent = data.predictedClass.toUpperCase();
+  document.getElementById('result-pct').textContent   = pct + '%';
+  document.getElementById('bar').style.width          = pct + '%';
+  document.getElementById('preds').innerHTML = data.topPredictions.map((p, i) => {
+    const pc = Math.round(p.confidence * 100);
+    return '<div class="pred-item"><div class="row"><span>' + (i+1) + '. ' + p.class + '</span><span class="pct">' + pc + '%</span></div><div class="bar-bg"><div class="bar-fill" style="width:' + pc + '%"></div></div></div>';
+  }).join('');
+}
+
+async function openModal() {
+  document.getElementById('modal').classList.add('open');
+  const data = await fetch('/folders').then(r => r.json());
+  document.getElementById('folders').innerHTML = data.folders.map(f =>
+    '<button class="folder-btn" onclick="loadFolder(\'' + f + '\', this)">' + f + '</button>'
+  ).join('');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+async function loadFolder(name, btn) {
+  document.querySelectorAll('.folder-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('modal-title').textContent = name;
+  const data = await fetch('/folders/' + encodeURIComponent(name)).then(r => r.json());
+  document.getElementById('images').innerHTML = data.images.map(img =>
+    '<img src="/images/' + encodeURIComponent(name) + '/' + encodeURIComponent(img) + '" loading="lazy" title="' + img + '" onclick="pickImage(\'' + name + '\',\'' + img + '\')">'
+  ).join('');
+}
+
+async function pickImage(folder, name) {
+  const blob = await fetch('/images/' + encodeURIComponent(folder) + '/' + encodeURIComponent(name)).then(r => r.blob());
+  const ext  = name.split('.').pop();
+  currentFile = new File([blob], name, { type: 'image/' + (ext === 'jpg' ? 'jpeg' : ext) });
+  document.getElementById('preview').src = URL.createObjectURL(blob);
+  document.getElementById('preview').style.display = 'block';
+  document.getElementById('hint').style.display = 'none';
+  closeModal();
+}
+</script>
+</body>
+</html>
